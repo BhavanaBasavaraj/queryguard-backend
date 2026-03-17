@@ -1,100 +1,46 @@
-import uuid
-from sqlalchemy.orm import Session
-from app.models.schema_mapping import SchemaMapping
-
 class PrivacyProxy:
-    
-    def __init__(self, db: Session, database_id: str):
-        self.db = db
+
+    def __init__(self, database_id: str):
         self.database_id = database_id
+        self._forward_map = {}  # real_name → anonymous_name
+        self._reverse_map = {}  # anonymous_name → real_name
+        self._table_counter = 0
+        self._column_counter = 0
 
-    def _get_or_create_mapping(self, real_name: str, is_column: bool, parent_table: str = None) -> str:
-        # Check if mapping already exists
-        existing = self.db.query(SchemaMapping).filter(
-            SchemaMapping.database_id == self.database_id,
-            SchemaMapping.real_table_name == real_name,
-            SchemaMapping.is_column == is_column
-        ).first()
+    def _get_or_create_mapping(self, real_name: str, is_column: bool) -> str:
+        if real_name in self._forward_map:
+            return self._forward_map[real_name]
 
-        if existing:
-            return existing.anonymous_name
-
-        # Create new mapping
         prefix = "C" if is_column else "T"
-        count = self.db.query(SchemaMapping).filter(
-            SchemaMapping.database_id == self.database_id,
-            SchemaMapping.is_column == is_column
-        ).count()
+        if is_column:
+            self._column_counter += 1
+            anonymous_name = f"{prefix}{self._column_counter}"
+        else:
+            self._table_counter += 1
+            anonymous_name = f"{prefix}{self._table_counter}"
 
-        anonymous_name = f"{prefix}{count + 1}"
-
-        mapping = SchemaMapping(
-            database_id=self.database_id,
-            real_table_name=real_name,
-            anonymous_name=anonymous_name,
-            is_column=is_column,
-            parent_table=parent_table
-        )
-        self.db.add(mapping)
-        self.db.commit()
+        self._forward_map[real_name] = anonymous_name
+        self._reverse_map[anonymous_name] = real_name
 
         return anonymous_name
 
     def anonymize_schema(self, schema: dict) -> dict:
         anonymized = {}
-
         for table_name, columns in schema.items():
-            # Anonymize table name
-            anon_table = self._get_or_create_mapping(
-                real_name=table_name,
-                is_column=False
-            )
-
-            # Anonymize each column
-            anon_columns = []
-            for col in columns:
-                anon_col = self._get_or_create_mapping(
-                    real_name=col,
-                    is_column=True,
-                    parent_table=table_name
-                )
-                anon_columns.append(anon_col)
-
+            anon_table = self._get_or_create_mapping(table_name, is_column=False)
+            anon_columns = [
+                self._get_or_create_mapping(col, is_column=True)
+                for col in columns
+            ]
             anonymized[anon_table] = anon_columns
-
         return anonymized
 
     def deanonymize_sql(self, sql: str) -> str:
-        # Get all mappings for this database
-        mappings = self.db.query(SchemaMapping).filter(
-            SchemaMapping.database_id == self.database_id
-        ).all()
-
-        # Replace anonymous names with real names
-        # Sort by length descending to avoid partial replacements
-        mappings_sorted = sorted(
-            mappings,
-            key=lambda m: len(m.anonymous_name),
-            reverse=True
-        )
-
         result = sql
-        for mapping in mappings_sorted:
-            result = result.replace(
-                mapping.anonymous_name,
-                mapping.real_table_name
-            )
-
+        for anon, real in sorted(
+            self._reverse_map.items(),
+            key=lambda x: len(x[0]),
+            reverse=True
+        ):
+            result = result.replace(anon, real)
         return result
-
-    def get_forward_mapping(self) -> dict:
-        mappings = self.db.query(SchemaMapping).filter(
-            SchemaMapping.database_id == self.database_id
-        ).all()
-        return {m.real_table_name: m.anonymous_name for m in mappings}
-
-    def get_reverse_mapping(self) -> dict:
-        mappings = self.db.query(SchemaMapping).filter(
-            SchemaMapping.database_id == self.database_id
-        ).all()
-        return {m.anonymous_name: m.real_table_name for m in mappings}
