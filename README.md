@@ -59,7 +59,7 @@ The AI never sees `users` or `email` — it only sees `T1` and `C3`. QueryGuard 
 - **Row Limit** — Maximum 10,000 rows returned per query
 
 ### 🔄 Reliability
-- **Multi-LLM Orchestration** — OpenAI GPT-4 as primary, Anthropic Claude as automatic fallback
+- **Multi-LLM Orchestration** — Google Gemini as primary, NVIDIA NIM (Llama 3.3 70B) as automatic fallback
 - **Circuit Breaker Pattern** — Auto-switches to backup AI when error rate exceeds 10%
 - **Retry Logic** — 3 attempts with exponential backoff before failover
 - **99%+ Uptime** — Maintained despite individual provider outages
