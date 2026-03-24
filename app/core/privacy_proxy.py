@@ -2,8 +2,8 @@ class PrivacyProxy:
 
     def __init__(self, database_id: str):
         self.database_id = database_id
-        self._forward_map = {}  # real_name → anonymous_name
-        self._reverse_map = {}  # anonymous_name → real_name
+        self._forward_map = {}
+        self._reverse_map = {}
         self._table_counter = 0
         self._column_counter = 0
 
@@ -44,3 +44,9 @@ class PrivacyProxy:
         ):
             result = result.replace(anon, real)
         return result
+
+    def get_forward_mapping(self) -> dict:
+        return {k: v for k, v in self._forward_map.items()}
+
+    def get_reverse_mapping(self) -> dict:
+        return {k: v for k, v in self._reverse_map.items()}

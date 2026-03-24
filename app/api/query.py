@@ -12,10 +12,18 @@ router = APIRouter()
 llm_router = LLMRouter()
 validator = SQLValidator()
 
+# Schema with table hints — we reveal table purpose but not column sensitivity
 SAMPLE_SCHEMA = {
     "customers": ["id", "name", "email", "revenue", "created_at"],
     "orders": ["id", "customer_id", "total", "status", "created_at"],
     "products": ["id", "name", "price", "category", "stock"]
+}
+
+# Table hints tell AI what each table is about without revealing column details
+TABLE_HINTS = {
+    "customers": "contains customer/user information",
+    "orders": "contains order/purchase transactions",
+    "products": "contains product/item catalog with pricing"
 }
 
 class QueryRequest(BaseModel):
@@ -37,7 +45,6 @@ class QueryResponse(BaseModel):
 async def process_query(request: QueryRequest):
     start_time = time.time()
 
-    # Step 1: Check Redis cache
     cached = get_cached_result(request.question, request.database_id)
     if cached:
         execution_time = (time.time() - start_time) * 1000
@@ -53,17 +60,26 @@ async def process_query(request: QueryRequest):
         )
 
     try:
-        # Step 2: Anonymize schema
         proxy = PrivacyProxy(database_id=request.database_id)
         anonymized_schema = proxy.anonymize_schema(SAMPLE_SCHEMA)
 
-        # Step 3: Generate SQL via LLM
+        # Build schema string with hints using anonymized names
+        schema_with_hints = {}
+        for real_table, anon_table in proxy.get_forward_mapping().items():
+            if real_table in TABLE_HINTS and real_table in SAMPLE_SCHEMA:
+                hint = TABLE_HINTS[real_table]
+                anon_cols = anonymized_schema.get(anon_table, [])
+                schema_with_hints[anon_table] = {
+                    "hint": hint,
+                    "columns": anon_cols
+                }
+
         sql, provider = llm_router.generate_sql(
             question=request.question,
-            anonymized_schema=anonymized_schema
+            anonymized_schema=anonymized_schema,
+            schema_hints=schema_with_hints
         )
 
-        # Step 4: Validate SQL
         is_valid, reason = validator.validate(sql)
         if not is_valid:
             execution_time = (time.time() - start_time) * 1000
@@ -83,15 +99,10 @@ async def process_query(request: QueryRequest):
                 detail=f"Generated SQL failed validation: {reason}"
             )
 
-        # Step 5: De-anonymize SQL
         real_sql = proxy.deanonymize_sql(sql)
-
-        # Step 6: Execute on real database
         results = execute_query(real_sql)
-
         execution_time = (time.time() - start_time) * 1000
 
-        # Step 7: Cache result
         result_to_cache = {
             "query_id": "",
             "sql_generated": real_sql,
@@ -99,7 +110,6 @@ async def process_query(request: QueryRequest):
             "llm_provider": provider
         }
 
-        # Step 8: Log to DynamoDB
         query_id = log_query(
             user_id=request.user_id,
             database_id=request.database_id,

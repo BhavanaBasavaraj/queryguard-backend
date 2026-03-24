@@ -34,20 +34,20 @@ openai_breaker = CircuitBreaker()
 
 class LLMRouter:
 
-    def generate_sql(self, question: str, anonymized_schema: dict) -> tuple[str, str]:
+    def generate_sql(self, question: str, anonymized_schema: dict, schema_hints: dict = None) -> tuple[str, str]:
         if openai_breaker.can_attempt():
             for attempt in range(3):
                 try:
-                    sql = openai_client.generate_sql(question, anonymized_schema)
+                    sql = openai_client.generate_sql(question, anonymized_schema, schema_hints)
                     openai_breaker.record_success()
-                    return sql, "openai"
+                    return sql, "gemini"
                 except Exception as e:
                     openai_breaker.record_failure()
                     wait_time = 2 ** attempt
                     time.sleep(wait_time)
 
         try:
-            sql = claude_client.generate_sql(question, anonymized_schema)
-            return sql, "claude"
+            sql = claude_client.generate_sql(question, anonymized_schema, schema_hints)
+            return sql, "nvidia-nim"
         except Exception as e:
             raise Exception(f"All LLM providers failed: {str(e)}")
