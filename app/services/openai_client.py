@@ -7,23 +7,23 @@ def generate_sql(question: str, anonymized_schema: dict, schema_hints: dict = No
     schema_str = ""
     if schema_hints:
         for table, info in schema_hints.items():
-            schema_str += f"- Table {table} ({info['hint']}): columns {', '.join(info['columns'])}\n"
+            cols = ", ".join(info.get("col_descriptions", info["columns"]))
+            schema_str += f"- Table {table} ({info['hint']}): {cols}\n"
     else:
         for table, columns in anonymized_schema.items():
             schema_str += f"- Table {table}: columns {', '.join(columns)}\n"
 
     prompt = f"""You are an expert SQL generator for PostgreSQL.
 
-The database schema uses anonymized table and column names for privacy.
-Each table has a hint describing its purpose to help you write correct queries.
+The schema uses anonymized names for privacy but includes type hints to help you write correct SQL.
 
 Rules:
 - Generate ONLY a single SQL SELECT statement
-- Use ONLY the table and column names provided
+- Use ONLY the anonymized table and column names provided
 - ALWAYS include a LIMIT clause (maximum 1000 rows)
 - Never use DROP, DELETE, UPDATE, INSERT, TRUNCATE
 - Return ONLY the raw SQL, no explanation, no markdown, no backticks
-- Use the table hints to pick the right table for the question
+- Use the type hints to pick correct columns for filtering and ordering
 
 Database Schema:
 {schema_str}
@@ -34,7 +34,7 @@ SQL Query:"""
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-1.5-flash-8b",
             contents=prompt
         )
         sql = response.text.strip()

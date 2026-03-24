@@ -12,18 +12,35 @@ router = APIRouter()
 llm_router = LLMRouter()
 validator = SQLValidator()
 
-# Schema with table hints — we reveal table purpose but not column sensitivity
 SAMPLE_SCHEMA = {
     "customers": ["id", "name", "email", "revenue", "created_at"],
     "orders": ["id", "customer_id", "total", "status", "created_at"],
     "products": ["id", "name", "price", "category", "stock"]
 }
 
-# Table hints tell AI what each table is about without revealing column details
-TABLE_HINTS = {
-    "customers": "contains customer/user information",
-    "orders": "contains order/purchase transactions",
-    "products": "contains product/item catalog with pricing"
+# Column hints tell AI what each column type is — without revealing real names
+COLUMN_HINTS = {
+    "customers": {
+        "id": "unique identifier (integer)",
+        "name": "person name (text)",
+        "email": "email address (text)",
+        "revenue": "total revenue amount (numeric)",
+        "created_at": "record creation timestamp"
+    },
+    "orders": {
+        "id": "unique identifier (integer)",
+        "customer_id": "reference to customer (integer)",
+        "total": "order total amount (numeric)",
+        "status": "order status text: completed/pending/cancelled",
+        "created_at": "order timestamp"
+    },
+    "products": {
+        "id": "unique identifier (integer)",
+        "name": "product name (text)",
+        "price": "product price (numeric)",
+        "category": "product category text: Electronics/Furniture/Appliances",
+        "stock": "available stock quantity (integer)"
+    }
 }
 
 class QueryRequest(BaseModel):
@@ -63,16 +80,27 @@ async def process_query(request: QueryRequest):
         proxy = PrivacyProxy(database_id=request.database_id)
         anonymized_schema = proxy.anonymize_schema(SAMPLE_SCHEMA)
 
-        # Build schema string with hints using anonymized names
+        # Build rich schema hints with column type info
         schema_with_hints = {}
-        for real_table, anon_table in proxy.get_forward_mapping().items():
-            if real_table in TABLE_HINTS and real_table in SAMPLE_SCHEMA:
-                hint = TABLE_HINTS[real_table]
-                anon_cols = anonymized_schema.get(anon_table, [])
-                schema_with_hints[anon_table] = {
-                    "hint": hint,
-                    "columns": anon_cols
-                }
+        forward_map = proxy.get_forward_mapping()
+
+        for real_table, anon_table in forward_map.items():
+            if real_table not in SAMPLE_SCHEMA:
+                continue
+            anon_cols = anonymized_schema.get(anon_table, [])
+            real_cols = SAMPLE_SCHEMA[real_table]
+            col_hints = COLUMN_HINTS.get(real_table, {})
+
+            col_descriptions = []
+            for real_col, anon_col in zip(real_cols, anon_cols):
+                hint = col_hints.get(real_col, "text")
+                col_descriptions.append(f"{anon_col} ({hint})")
+
+            schema_with_hints[anon_table] = {
+                "hint": f"table {real_table.replace('_', ' ')}",
+                "columns": anon_cols,
+                "col_descriptions": col_descriptions
+            }
 
         sql, provider = llm_router.generate_sql(
             question=request.question,
