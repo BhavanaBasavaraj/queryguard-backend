@@ -1,5 +1,5 @@
 import time
-from app.services import openai_client, claude_client
+from app.services import openai_client, nvidia_client
 
 class CircuitBreaker:
     def __init__(self, failure_threshold=5, cooldown_seconds=60):
@@ -30,24 +30,24 @@ class CircuitBreaker:
         return False
 
 
-openai_breaker = CircuitBreaker()
+gemini_breaker = CircuitBreaker()
 
 class LLMRouter:
 
     def generate_sql(self, question: str, anonymized_schema: dict, schema_hints: dict = None) -> tuple[str, str]:
-        if openai_breaker.can_attempt():
+        if gemini_breaker.can_attempt():
             for attempt in range(3):
                 try:
                     sql = openai_client.generate_sql(question, anonymized_schema, schema_hints)
-                    openai_breaker.record_success()
+                    gemini_breaker.record_success()
                     return sql, "gemini"
                 except Exception as e:
-                    openai_breaker.record_failure()
+                    gemini_breaker.record_failure()
                     wait_time = 2 ** attempt
                     time.sleep(wait_time)
 
         try:
-            sql = claude_client.generate_sql(question, anonymized_schema, schema_hints)
+            sql = nvidia_client.generate_sql(question, anonymized_schema, schema_hints)
             return sql, "nvidia-nim"
         except Exception as e:
             raise Exception(f"All LLM providers failed: {str(e)}")

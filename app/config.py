@@ -5,8 +5,6 @@ class Settings(BaseSettings):
     debug: bool = False
     database_url: str = "postgresql://user:password@localhost:5432/queryguard"
     redis_url: str = "redis://localhost:6379"
-    openai_api_key: str = ""
-    anthropic_api_key: str = ""
     gemini_api_key: str = ""
     nvidia_api_key: str = ""
     secret_key: str = "your-secret-key-change-in-production"
