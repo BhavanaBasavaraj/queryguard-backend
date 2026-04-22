@@ -2,10 +2,11 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from app.services.aws_clients import get_dynamodb_resource, get_dynamodb_client
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-TABLE_NAME = "queryguard-audit-logs"
+TABLE_NAME = settings.dynamodb_table
 
 def create_table_if_not_exists():
     client = get_dynamodb_client()
