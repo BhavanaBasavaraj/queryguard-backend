@@ -1,6 +1,7 @@
 # QueryGuard 🛡️
 ### Privacy-First AI Database Gateway
 
+
 [![Python](https://img.shields.io/badge/Python-3.11+-blue)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green)](https://fastapi.tiangolo.com)
 [![Redis](https://img.shields.io/badge/Redis-7.0+-red)](https://redis.io)
