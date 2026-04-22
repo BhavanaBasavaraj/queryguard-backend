@@ -24,12 +24,13 @@ class SQLValidator:
         if "LIMIT" not in sql_upper:
             return False, "Query must include a LIMIT clause"
 
-        # Check 4: LIMIT value must not exceed 10000
+        # Check 4: LIMIT must be a numeric value and must not exceed 10000
         limit_match = re.search(r'LIMIT\s+(\d+)', sql_upper)
-        if limit_match:
-            limit_value = int(limit_match.group(1))
-            if limit_value > 10000:
-                return False, f"LIMIT cannot exceed 10000 rows, got {limit_value}"
+        if not limit_match:
+            return False, "LIMIT clause must specify a numeric value"
+        limit_value = int(limit_match.group(1))
+        if limit_value > 10000:
+            return False, f"LIMIT cannot exceed 10000 rows, got {limit_value}"
 
         # Check 5: No semicolons except at the end (prevents multiple statements)
         sql_without_end = sql.strip().rstrip(';')

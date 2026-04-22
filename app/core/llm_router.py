@@ -43,8 +43,8 @@ class LLMRouter:
                     return sql, "gemini"
                 except Exception as e:
                     gemini_breaker.record_failure()
-                    wait_time = 2 ** attempt
-                    time.sleep(wait_time)
+                    if attempt < 2:
+                        time.sleep(2 ** attempt)
 
         try:
             sql = nvidia_client.generate_sql(question, anonymized_schema, schema_hints)

@@ -62,7 +62,7 @@ class QueryResponse(BaseModel):
 async def process_query(request: QueryRequest):
     start_time = time.time()
 
-    cached = get_cached_result(request.question, request.database_id)
+    cached = get_cached_result(request.question, request.database_id, request.user_id)
     if cached:
         execution_time = (time.time() - start_time) * 1000
         return QueryResponse(
@@ -97,7 +97,7 @@ async def process_query(request: QueryRequest):
                 col_descriptions.append(f"{anon_col} ({hint})")
 
             schema_with_hints[anon_table] = {
-                "hint": f"table {real_table.replace('_', ' ')}",
+                "hint": f"table {anon_table}",
                 "columns": anon_cols,
                 "col_descriptions": col_descriptions
             }
@@ -150,7 +150,7 @@ async def process_query(request: QueryRequest):
         )
 
         result_to_cache["query_id"] = query_id
-        cache_result(request.question, request.database_id, result_to_cache)
+        cache_result(request.question, request.database_id, request.user_id, result_to_cache)
 
         return QueryResponse(
             query_id=query_id,

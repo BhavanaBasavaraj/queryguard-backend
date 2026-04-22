@@ -1,3 +1,5 @@
+import re
+
 class PrivacyProxy:
 
     def __init__(self, database_id: str):
@@ -42,7 +44,7 @@ class PrivacyProxy:
             key=lambda x: len(x[0]),
             reverse=True
         ):
-            result = result.replace(anon, real)
+            result = re.sub(re.escape(anon), real, result, flags=re.IGNORECASE)
         return result
 
     def get_forward_mapping(self) -> dict:
