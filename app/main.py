@@ -1,13 +1,20 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.utils.audit import create_table_if_not_exists
 from app.api import query
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_table_if_not_exists()
+    yield
+
 app = FastAPI(
     title=settings.app_name,
     description="Privacy-First AI Database Gateway",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -17,10 +24,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("startup")
-async def startup_event():
-    create_table_if_not_exists()
 
 # Register routers
 app.include_router(query.router, tags=["Query"])

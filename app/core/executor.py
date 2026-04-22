@@ -16,7 +16,10 @@ def serialize_row(row: dict) -> dict:
     return result
 
 def execute_query(sql: str) -> list[dict]:
-    conn = psycopg2.connect(settings.database_url)
+    conn = psycopg2.connect(
+        settings.database_url,
+        options=f"-c statement_timeout={settings.query_timeout * 1000}"
+    )
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
             cursor.execute(sql)
