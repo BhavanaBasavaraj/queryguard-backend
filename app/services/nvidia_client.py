@@ -1,5 +1,7 @@
 from openai import OpenAI
 from app.config import settings
+from app.core import providers
+from app.core.llm_errors import classify
 
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
@@ -35,15 +37,18 @@ Question: {question}
 
 SQL Query:"""
 
-    response = client.chat.completions.create(
-        model=settings.nvidia_model,
-        messages=[
-            {"role": "system", "content": "You are an expert SQL generator. Use type hints to write accurate SQL. Return only raw SQL."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=settings.llm_temperature,
-        max_tokens=settings.llm_max_output_tokens
-    )
+    try:
+        response = client.chat.completions.create(
+            model=settings.nvidia_model,
+            messages=[
+                {"role": "system", "content": "You are an expert SQL generator. Use type hints to write accurate SQL. Return only raw SQL."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=settings.llm_temperature,
+            max_tokens=settings.llm_max_output_tokens
+        )
+    except Exception as e:
+        raise classify(e, providers.NIM, settings.nvidia_model) from e
 
     sql = response.choices[0].message.content.strip()
     if "```" in sql:

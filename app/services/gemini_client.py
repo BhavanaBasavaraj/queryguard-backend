@@ -1,6 +1,8 @@
 from google import genai
 from google.genai import types
 from app.config import settings
+from app.core import providers
+from app.core.llm_errors import classify
 
 client = genai.Client(api_key=settings.gemini_api_key)
 
@@ -52,4 +54,4 @@ SQL Query:"""
             sql = "\n".join(line for line in lines if not line.strip().startswith("```"))
         return sql.strip()
     except Exception as e:
-        raise Exception(f"Gemini API error: {str(e)}")
+        raise classify(e, providers.GEMINI, settings.gemini_model) from e

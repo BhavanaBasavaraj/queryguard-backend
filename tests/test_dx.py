@@ -3,6 +3,7 @@ import logging
 import unittest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
+from app.core import providers
 
 from app.main import app
 
@@ -33,7 +34,7 @@ class TestDeveloperExperience(unittest.TestCase):
     @patch("app.api.query.llm_router.generate_sql")
     def test_sql_validation_error_status_502(self, mock_llm):
         # 2. Rejection by validator -> HTTP 502 Bad Gateway
-        mock_llm.return_value = ("SELECT * FROM T1; DROP TABLE T1; LIMIT 5", "gemini")
+        mock_llm.return_value = ("SELECT * FROM T1; DROP TABLE T1; LIMIT 5", providers.GEMINI)
 
         payload = {
             "question": "Drop tables if exists",
@@ -68,7 +69,7 @@ class TestDeveloperExperience(unittest.TestCase):
     @patch("app.api.query.llm_router.generate_sql")
     def test_zero_exfiltration_in_error_body_and_logs(self, mock_llm, mock_val):
         # Mock LLM and validator to simulate a non-keyword validation failure whose reason includes real schema identifiers
-        mock_llm.return_value = ("SELECT T1.C1 FROM T1 LIMIT 99999", "gemini")
+        mock_llm.return_value = ("SELECT T1.C1 FROM T1 LIMIT 99999", providers.GEMINI)
         mock_val.return_value = (False, "Table 'customers' column 'revenue' exceeds max query limit of 10000 rows, got 99999")
 
         log_capture = io.StringIO()
@@ -109,7 +110,7 @@ class TestDeveloperExperience(unittest.TestCase):
     def test_redis_offline_resilience(self, mock_cache_get, mock_llm, mock_execute):
         # Cache lookup fails / returns None
         mock_cache_get.return_value = None
-        mock_llm.return_value = ("SELECT T1.C1 FROM T1 LIMIT 5", "gemini")
+        mock_llm.return_value = ("SELECT T1.C1 FROM T1 LIMIT 5", providers.GEMINI)
         mock_execute.return_value = [{"id": 1}]
 
         payload = {

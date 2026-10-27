@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
+from app.core import providers
 
 from app.main import app
 
@@ -27,7 +28,7 @@ class TestIntegrationAPI(unittest.TestCase):
         # 1. LLM returns anonymized SQL with table T1 and columns C1, C2, C4
         mock_llm.return_value = (
             "SELECT T1.C1, T1.C2 FROM T1 ORDER BY T1.C4 DESC LIMIT 2",
-            "gemini"
+            providers.GEMINI
         )
 
         # 2. Database returns mock row results
@@ -56,7 +57,7 @@ class TestIntegrationAPI(unittest.TestCase):
         self.assertEqual(data["rows_returned"], 2)
         self.assertEqual(len(data["results"]), 2)
         self.assertEqual(data["results"][0]["name"], "Alice")
-        self.assertEqual(data["llm_provider"], "gemini")
+        self.assertEqual(data["llm_provider"], providers.GEMINI)
         self.assertEqual(data["message"], "Query processed successfully")
 
 if __name__ == "__main__":

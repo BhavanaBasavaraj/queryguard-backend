@@ -77,7 +77,7 @@ class QueryResponse(BaseModel):
     rows_returned: int = Field(..., description="Total row count returned", example=1)
     execution_time_ms: float = Field(..., description="Total processing latency in milliseconds", example=142.5)
     cache_hit: bool = Field(..., description="Indicates whether result was served from Redis cache", example=False)
-    llm_provider: str = Field(..., description="LLM provider that generated the query (gemini or nvidia-nim)", example="gemini")
+    llm_provider: str = Field(..., description="LLM provider that generated the query (gcp.gemini, nvidia.nim, or cache)", example="gcp.gemini")
     message: str = Field(..., description="Human-readable response message", example="Query processed successfully")
 
 class ErrorResponse(BaseModel):
