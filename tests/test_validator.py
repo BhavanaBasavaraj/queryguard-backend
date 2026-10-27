@@ -54,3 +54,35 @@ class TestSQLValidator(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class TestLimitBypass(unittest.TestCase):
+    """LIMIT must be a bounded number.
+
+    "LIMIT ALL" is valid PostgreSQL meaning no limit. An earlier version
+    accepted it, because the presence check saw the keyword and the value
+    check silently skipped when its regex found no digits.
+    """
+
+    def setUp(self):
+        self.validator = SQLValidator()
+
+    def test_limit_all_is_rejected(self):
+        ok, reason = self.validator.validate("SELECT * FROM T1 LIMIT ALL")
+        self.assertFalse(ok, f"LIMIT ALL should be rejected, got: {reason}")
+
+    def test_limit_all_with_semicolon_is_rejected(self):
+        ok, _ = self.validator.validate("SELECT * FROM T1 LIMIT ALL;")
+        self.assertFalse(ok)
+
+    def test_non_numeric_limit_is_rejected(self):
+        ok, _ = self.validator.validate("SELECT * FROM T1 LIMIT NULL")
+        self.assertFalse(ok)
+
+    def test_numeric_limit_within_bounds_is_accepted(self):
+        ok, _ = self.validator.validate("SELECT * FROM T1 LIMIT 100")
+        self.assertTrue(ok)
+
+    def test_limit_with_trailing_semicolon_is_accepted(self):
+        ok, _ = self.validator.validate("SELECT * FROM T1 LIMIT 100;")
+        self.assertTrue(ok)

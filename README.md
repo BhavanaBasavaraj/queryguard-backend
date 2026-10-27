@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green)](https://fastapi.tiangolo.com)
 [![Redis](https://img.shields.io/badge/Redis-7.0+-red)](https://redis.io)
-[![Tests](https://img.shields.io/badge/tests-25%20passing-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen)](#testing)
 
 > **Ask your database questions in plain English, without sending your
 > real schema to an AI provider.**
@@ -95,8 +95,12 @@ so `WHERE status = 'UPDATE'` does not trigger a false positive and
   error.
 
 ### Audit
-- Every query is logged with the generated SQL, execution time, provider,
-  and success or failure status.
+- Query audit logging is implemented against DynamoDB (`app/utils/audit.py`),
+  recording the generated SQL, execution time, provider, and outcome.
+- **Not yet exercised.** No AWS resources have been provisioned, and audit
+  writes fail open: when DynamoDB is unreachable the failure is logged as a
+  warning and the request proceeds. Running this against DynamoDB Local is
+  on the roadmap.
 
 ---
 
@@ -111,6 +115,7 @@ Documented because the process matters more than the result:
 | Primary model retired (Sept 2025) | Every Gemini call failed; the fallback masked it | Fixed |
 | Fallback model end-of-life (Aug 2026) | Both providers dead; the service returned errors for months with no signal | Fixed |
 | Permanent errors were retried | A retired model cost 3 attempts and ~7s of backoff per request | Fixed |
+| `LIMIT ALL` bypassed the row cap | Valid PostgreSQL for "no limit". The presence check saw the keyword; the value check silently skipped when its regex found no digits, so an unbounded query passed a validator whose purpose is bounding queries | Fixed, with regression tests |
 
 The last two are why [LogWatch](https://github.com/BhavanaBasavaraj/logwatch)
 exists: every layer of resilience worked exactly as designed, and none of
@@ -128,6 +133,8 @@ Not implemented. Listed here rather than described as features:
 - **Read-only database role** — safety currently rests on the validator
   alone; a read-only connection would add defence in depth
 - **Statement timeout** — no server-side query timeout is enforced
+- **Audit failure visibility** — audit writes currently fail open and
+  silently; they should be surfaced or queued
 - **`EXPLAIN` validation** — rejecting plans that would full-scan
 - **Semantic caching** — the cache is exact-match; embedding-based
   similarity would let near-identical questions share an entry
@@ -158,7 +165,7 @@ API docs at http://localhost:8000/docs
 venv/bin/python -m pytest tests/ -q
 ```
 
-25 tests covering the validator, the privacy proxy, cache key isolation,
+30 tests covering the validator, the privacy proxy, cache key isolation,
 and request integration.
 
 ---
