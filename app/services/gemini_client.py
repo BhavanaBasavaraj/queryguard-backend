@@ -1,4 +1,5 @@
 from google import genai
+from google.genai import types
 from app.config import settings
 
 client = genai.Client(api_key=settings.gemini_api_key)
@@ -34,8 +35,16 @@ SQL Query:"""
 
     try:
         response = client.models.generate_content(
-            model="gemini-1.5-flash-8b",
-            contents=prompt
+            model=settings.gemini_model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=settings.llm_temperature,
+                # Gemini 3.x Flash is a thinking model and thinking tokens
+                # count as output, so this budget covers both. Disabling
+                # thinking keeps SQL generation cheap and deterministic.
+                max_output_tokens=settings.llm_max_output_tokens,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
         )
         sql = response.text.strip()
         if "```" in sql:

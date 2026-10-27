@@ -1,15 +1,18 @@
+import re
+
 class PrivacyProxy:
 
     def __init__(self, database_id: str):
         self.database_id = database_id
-        self._forward_map = {}
-        self._reverse_map = {}
+        self._forward_map = {}  # key: (is_column, real_name) -> anonymous_name
+        self._reverse_map = {}  # key: anonymous_name -> real_name
         self._table_counter = 0
         self._column_counter = 0
 
     def _get_or_create_mapping(self, real_name: str, is_column: bool) -> str:
-        if real_name in self._forward_map:
-            return self._forward_map[real_name]
+        key = (is_column, real_name)
+        if key in self._forward_map:
+            return self._forward_map[key]
 
         prefix = "C" if is_column else "T"
         if is_column:
@@ -19,7 +22,7 @@ class PrivacyProxy:
             self._table_counter += 1
             anonymous_name = f"{prefix}{self._table_counter}"
 
-        self._forward_map[real_name] = anonymous_name
+        self._forward_map[key] = anonymous_name
         self._reverse_map[anonymous_name] = real_name
 
         return anonymous_name
@@ -42,11 +45,14 @@ class PrivacyProxy:
             key=lambda x: len(x[0]),
             reverse=True
         ):
-            result = result.replace(anon, real)
+            pattern = r'\b' + re.escape(anon) + r'\b'
+            result = re.sub(pattern, real, result)
         return result
 
     def get_forward_mapping(self) -> dict:
-        return {k: v for k, v in self._forward_map.items()}
+        # Returns simple mapping real_table_name -> anon_table_name for API compatibility
+        return {real: anon for (is_col, real), anon in self._forward_map.items() if not is_col}
 
     def get_reverse_mapping(self) -> dict:
         return {k: v for k, v in self._reverse_map.items()}
+

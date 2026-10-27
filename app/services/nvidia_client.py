@@ -36,13 +36,13 @@ Question: {question}
 SQL Query:"""
 
     response = client.chat.completions.create(
-        model="meta/llama-3.3-70b-instruct",
+        model=settings.nvidia_model,
         messages=[
             {"role": "system", "content": "You are an expert SQL generator. Use type hints to write accurate SQL. Return only raw SQL."},
             {"role": "user", "content": prompt}
         ],
-        temperature=0,
-        max_tokens=500
+        temperature=settings.llm_temperature,
+        max_tokens=settings.llm_max_output_tokens
     )
 
     sql = response.choices[0].message.content.strip()

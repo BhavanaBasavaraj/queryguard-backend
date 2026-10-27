@@ -1,5 +1,5 @@
 import time
-from app.services import openai_client, nvidia_client
+from app.services import gemini_client, nvidia_client
 
 class CircuitBreaker:
     def __init__(self, failure_threshold=5, cooldown_seconds=60):
@@ -38,7 +38,7 @@ class LLMRouter:
         if gemini_breaker.can_attempt():
             for attempt in range(3):
                 try:
-                    sql = openai_client.generate_sql(question, anonymized_schema, schema_hints)
+                    sql = gemini_client.generate_sql(question, anonymized_schema, schema_hints)
                     gemini_breaker.record_success()
                     return sql, "gemini"
                 except Exception as e:
