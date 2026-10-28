@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = ""
     aws_region: str = "us-east-1"
     dynamodb_table: str = "queryguard-audit-logs"
+    # Points at DynamoDB Local by default. Leave empty to use real AWS.
+    dynamodb_endpoint_url: str = "http://localhost:8002"
     max_rows: int = 10000
     query_timeout: int = 30
     rate_limit_per_day: int = 100

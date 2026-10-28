@@ -1,11 +1,23 @@
 import uuid
 import logging
 from datetime import datetime, timezone
+from app.config import settings
 from app.services.aws_clients import get_dynamodb_resource, get_dynamodb_client
 
 logger = logging.getLogger(__name__)
 
-TABLE_NAME = "queryguard-audit-logs"
+# Audit writes fail open so a logging outage cannot stop query serving.
+# That makes failures invisible by default, so they are counted and logged
+# at ERROR rather than WARNING. Queue-and-retry is the better answer and is
+# on the roadmap.
+_audit_failures = 0
+
+
+def audit_failure_count() -> int:
+    """Number of audit writes that have failed since process start."""
+    return _audit_failures
+
+TABLE_NAME = settings.dynamodb_table
 
 def create_table_if_not_exists():
     try:
@@ -57,8 +69,14 @@ def log_query(
             "error_message": error_message or "",
             "timestamp": timestamp
         })
+        logger.debug("audit row written: %s", query_id)
     except Exception as e:
-        logger.warning(f"DynamoDB audit log entry failed: {e}")
+        global _audit_failures
+        _audit_failures += 1
+        logger.error(
+            "AUDIT WRITE FAILED (%d since start) for query_id=%s user=%s: %s",
+            _audit_failures, query_id, user_id, e,
+        )
 
     return query_id
 
