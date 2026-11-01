@@ -22,9 +22,14 @@ class TestIntegrationAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["message"], "QueryGuard API is running")
 
+    # The cache is patched to miss. Without this the test depends on
+    # whatever Redis happens to hold: a warm cache short-circuits the
+    # request and the mocked router is never called. It passed for
+    # months only because Redis was unreachable and the cache failed open.
+    @patch("app.api.query.get_cached_result", return_value=None)
     @patch("app.api.query.execute_query")
     @patch("app.api.query.llm_router.generate_sql")
-    def test_full_query_pipeline(self, mock_llm, mock_execute):
+    def test_full_query_pipeline(self, mock_llm, mock_execute, mock_cache):
         # 1. LLM returns anonymized SQL with table T1 and columns C1, C2, C4
         mock_llm.return_value = (
             "SELECT T1.C1, T1.C2 FROM T1 ORDER BY T1.C4 DESC LIMIT 2",
@@ -62,3 +67,37 @@ class TestIntegrationAPI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCachePath(unittest.TestCase):
+    """The cache-hit branch returns a different message and skips the model.
+
+    Untested until now, which is why a warm Redis silently broke
+    test_full_query_pipeline instead of failing a test of its own.
+    """
+
+    def setUp(self):
+        self.client = TestClient(app)
+
+    @patch("app.api.query.llm_router.generate_sql")
+    @patch("app.api.query.get_cached_result")
+    def test_cache_hit_skips_the_model(self, mock_cache, mock_llm):
+        mock_cache.return_value = {
+            "query_id": "cached-id",
+            "sql_generated": "SELECT customers.id FROM customers LIMIT 1",
+            "results": [{"id": 101}],
+            "rows_returned": 1,
+            "llm_provider": providers.GEMINI,
+        }
+
+        r = self.client.post("/query", json={
+            "question": "anything",
+            "database_id": "db1",
+            "user_id": "user_cache",
+        })
+
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data["cache_hit"])
+        self.assertEqual(data["message"], "Result served from cache")
+        mock_llm.assert_not_called()
