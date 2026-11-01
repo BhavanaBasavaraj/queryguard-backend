@@ -64,3 +64,8 @@ uritemplate==4.2.0
 urllib3==2.6.3
 uvicorn==0.41.0
 websockets==16.0
+
+# OpenTelemetry (stable 1.x and contrib 0.xxb are version-locked)
+opentelemetry-api==1.45.1
+opentelemetry-sdk==1.45.1
+opentelemetry-instrumentation-fastapi==0.66b1

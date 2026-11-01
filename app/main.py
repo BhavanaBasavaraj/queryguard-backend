@@ -11,6 +11,8 @@ from app.config import settings
 from app.utils.audit import create_table_if_not_exists
 from app.api import query
 from app.core.exceptions import QueryGuardException
+from app.core.telemetry import setup_tracing
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 # ContextVar for request-scoped request_id
 request_id_ctx: ContextVar[str] = ContextVar("request_id", default="")
@@ -29,10 +31,24 @@ handler.addFilter(RequestIDLogFilter())
 if not logger.handlers:
     logger.addHandler(handler)
 
+# Register the TracerProvider before anything requests a tracer. A module
+# that calls get_tracer() before this runs receives a no-op tracer and keeps
+# it for the life of the process.
+setup_tracing()
+
 app = FastAPI(
     title=settings.app_name,
     description="Privacy-First AI Database Gateway",
     version="1.0.0"
+)
+
+# One span per HTTP request, named by route template rather than raw path so
+# that requests to the same endpoint group together. Health and docs are
+# excluded: a 10-second container healthcheck would otherwise emit ~8,600
+# spans a day of pure noise.
+FastAPIInstrumentor.instrument_app(
+    app,
+    excluded_urls="health,docs,openapi.json,redoc",
 )
 
 app.add_middleware(

@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     dynamodb_table: str = "queryguard-audit-logs"
     # Points at DynamoDB Local by default. Leave empty to use real AWS.
     dynamodb_endpoint_url: str = "http://localhost:8002"
+    # OpenTelemetry
+    otel_enabled: bool = True
+    otel_service_name: str = "queryguard"
+    otel_service_version: str = "0.1.0"
+    otel_environment: str = "local"
+
     max_rows: int = 10000
     query_timeout: int = 30
     rate_limit_per_day: int = 100
