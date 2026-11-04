@@ -118,3 +118,49 @@ def record_error(span, exc: Any, error_type: str) -> None:
     span.set_attribute(ERROR_TYPE, error_type)
     span.record_exception(exc)
     span.set_status(Status(StatusCode.ERROR, error_type))
+
+
+# --- root span (one per request) ------------------------------------------
+# Request-level facts, as distinct from per-call facts. These map onto
+# query_events; the gen_ai.* attributes above map onto llm_calls.
+QG_CACHE_HIT = "queryguard.cache_hit"
+QG_PROVIDER_FINAL = "queryguard.provider_final"
+QG_ATTEMPT_COUNT = "queryguard.attempt_count"
+QG_GUARD_VERDICT = "queryguard.guard_verdict"
+QG_QUESTION_SHA256 = "queryguard.question_sha256"
+QG_QUESTION_CHARS = "queryguard.question_char_len"
+QG_USER_ID = "queryguard.user_id"
+QG_DATABASE_ID = "queryguard.database_id"
+QG_ROWS_RETURNED = "queryguard.rows_returned"
+
+
+def set_request_facts(span, *, question: str, user_id: str, database_id: str) -> None:
+    """Facts known before any work happens. Set on every path, including
+    the ones that fail, so a failed request is still explicable."""
+    span.set_attribute(QG_QUESTION_SHA256, sha256(question))
+    span.set_attribute(QG_QUESTION_CHARS, len(question or ""))
+    span.set_attribute(QG_USER_ID, user_id)
+    span.set_attribute(QG_DATABASE_ID, database_id)
+    span.set_attribute(QG_SEMCONV_VERSION, SEMCONV_VERSION)
+
+
+def set_outcome(span, *, cache_hit: bool, provider_final: str | None = None,
+                attempt_count: int | None = None, guard_verdict: str | None = None,
+                rows_returned: int | None = None, sql: str | None = None) -> None:
+    """How the request resolved.
+
+    cache_hit is always set, never omitted: a cache hit produces a span
+    with no child, and without this attribute that is indistinguishable
+    from a request that failed before reaching a model.
+    """
+    span.set_attribute(QG_CACHE_HIT, cache_hit)
+    if provider_final:
+        span.set_attribute(QG_PROVIDER_FINAL, provider_final)
+    if attempt_count is not None:
+        span.set_attribute(QG_ATTEMPT_COUNT, attempt_count)
+    if guard_verdict:
+        span.set_attribute(QG_GUARD_VERDICT, guard_verdict)
+    if rows_returned is not None:
+        span.set_attribute(QG_ROWS_RETURNED, rows_returned)
+    if sql:
+        span.set_attribute(QG_SQL_FINGERPRINT, sql_fingerprint(sql))

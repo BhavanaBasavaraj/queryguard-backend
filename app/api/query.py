@@ -8,6 +8,8 @@ from app.core.validator import SQLValidator
 from app.core.executor import execute_query
 from app.core.cache import get_cached_result, cache_result
 from app.utils.audit import log_query
+from app.core import genai_span as gs
+from opentelemetry import trace
 from app.core.exceptions import (
     QueryGuardException,
     InvalidQueryError,
@@ -100,12 +102,34 @@ class ErrorResponse(BaseModel):
 async def process_query(request: QueryRequest):
     start_time = time.time()
 
+    # The FastAPI instrumentation created this span; we add the domain
+    # facts it cannot know. A no-op span is returned when tracing is off,
+    # so set_attribute is safe either way.
+    span = trace.get_current_span()
+    gs.set_request_facts(
+        span,
+        question=request.question,
+        user_id=request.user_id,
+        database_id=request.database_id,
+    )
+
     if not request.question or not request.question.strip():
         raise InvalidQueryError("Natural language question prompt cannot be empty")
 
     cached = get_cached_result(request.question, request.database_id, request.user_id)
     if cached:
         execution_time = (time.time() - start_time) * 1000
+        # No sql= here on purpose. The cache stores de-anonymized SQL, so
+        # passing it would put real table names on the span and undo the
+        # anonymization in telemetry. The trace that populated the cache
+        # already carries the anonymized fingerprint.
+        gs.set_outcome(
+            span,
+            cache_hit=True,
+            provider_final="cache",
+            attempt_count=0,
+            rows_returned=len(cached["results"]),
+        )
         return QueryResponse(
             query_id=cached["query_id"],
             sql_generated=cached["sql_generated"],
@@ -152,6 +176,10 @@ async def process_query(request: QueryRequest):
         )
     except Exception as e:
         execution_time = (time.time() - start_time) * 1000
+        # attempt_count is not set here: the router does not report it.
+        # The ingest consumer derives it by counting GenAI spans in the
+        # trace, which is the authoritative source.
+        gs.set_outcome(span, cache_hit=False, guard_verdict="llm_failed")
         logger.error(f"LLM provider error: {str(e)}")
         log_query(
             user_id=request.user_id,
@@ -166,6 +194,10 @@ async def process_query(request: QueryRequest):
     is_valid, reason = validator.validate(sql)
     if not is_valid:
         execution_time = (time.time() - start_time) * 1000
+        gs.set_outcome(
+            span, cache_hit=False, provider_final=provider,
+            guard_verdict="blocked", sql=sql,
+        )
         logger.error(f"Validation failed: {reason}")
         log_query(
             user_id=request.user_id,
@@ -195,6 +227,10 @@ async def process_query(request: QueryRequest):
             success=False,
             error_message=f"Database execution error: {str(e)}"
         )
+        gs.set_outcome(
+            span, cache_hit=False, provider_final=provider,
+            guard_verdict="allowed", sql=sql,
+        )
         raise DatabaseExecutionError()
 
 
@@ -217,6 +253,11 @@ async def process_query(request: QueryRequest):
         cache_hit=False,
         llm_provider=provider,
         success=True
+    )
+
+    gs.set_outcome(
+        span, cache_hit=False, provider_final=provider,
+        guard_verdict="allowed", rows_returned=len(results), sql=sql,
     )
 
     result_to_cache["query_id"] = query_id
