@@ -88,7 +88,8 @@ class LLMRouter:
             for attempt in range(MAX_ATTEMPTS):
                 try:
                     sql = gemini_client.generate_sql(
-                        question, anonymized_schema, schema_hints)
+                        question, anonymized_schema, schema_hints,
+                        attempt_seq=attempt + 1)
                     gemini_breaker.record_success()
                     return sql, providers.GEMINI
                 except LLMError as e:
@@ -114,8 +115,11 @@ class LLMRouter:
             logger.info("%s skipped: circuit breaker is open", providers.GEMINI)
 
         try:
+            # Fallback continues the sequence: if Gemini burned three
+            # attempts, NIM is attempt 4 within the same request.
             sql = nvidia_client.generate_sql(
-                question, anonymized_schema, schema_hints)
+                question, anonymized_schema, schema_hints,
+                attempt_seq=MAX_ATTEMPTS + 1)
             return sql, providers.NIM
         except LLMError as e:
             logger.error("all providers failed; last error: %s", e)

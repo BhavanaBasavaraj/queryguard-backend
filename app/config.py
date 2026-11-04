@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     otel_service_name: str = "queryguard"
     otel_service_version: str = "0.1.0"
     otel_environment: str = "local"
+    # Prompt and completion text on spans. Off by default: capturing it
+    # would put real content into the telemetry pipeline, which is the
+    # thing this service exists to avoid.
+    otel_capture_content: bool = False
 
     max_rows: int = 10000
     query_timeout: int = 30
