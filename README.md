@@ -139,7 +139,9 @@ Not implemented. Listed here rather than described as features:
 - **Semantic caching** — the cache is exact-match; embedding-based
   similarity would let near-identical questions share an entry
 - **Persisted, encrypted schema mappings** — currently in-memory only
-- **Containerization** — `Dockerfile` and `docker-compose.yml` are stubs
+- **Containerizing the app itself** — `docker-compose.yml` runs the
+  dependencies (Postgres, Redis, DynamoDB Local); the API runs on the host
+  and the `Dockerfile` is a stub
 - **Measured metrics** — cache hit rate, cost per query, provider fallback
   rate and latency percentiles are being instrumented in
   [LogWatch](https://github.com/BhavanaBasavaraj/logwatch)
@@ -165,7 +167,7 @@ API docs at http://localhost:8000/docs
 venv/bin/python -m pytest tests/ -q
 ```
 
-30 tests covering the validator, the privacy proxy, cache key isolation,
+32 tests covering the validator, the privacy proxy, cache key isolation,
 and request integration.
 
 ---
@@ -184,4 +186,4 @@ provider fallback rates per request.
 ## Author
 
 **Bhavana Basavaraj**
-[GitHub](https://github.com/BhavanaBasavaraj) · [LinkedIn](https://www.linkedin.com/in/mb-bhavana-906a55221/)
+[GitHub](https://github.com/BhavanaBasavaraj) · [LinkedIn](https://www.linkedin.com/in/bhavanamb/)
