@@ -65,6 +65,33 @@ class TestIntegrationAPI(unittest.TestCase):
         self.assertEqual(data["llm_provider"], providers.GEMINI)
         self.assertEqual(data["message"], "Query processed successfully")
 
+    # Regression test for the schema leak: the anonymized schema and hints
+    # are what the LLM receives. They must never contain a real table name,
+    # or the anonymization is undone in the same prompt that applies it.
+    @patch("app.api.query.get_cached_result", return_value=None)
+    @patch("app.api.query.execute_query", return_value=[])
+    @patch("app.api.query.llm_router.generate_sql")
+    def test_llm_input_contains_no_real_table_names(self, mock_llm, mock_execute, mock_cache):
+        import json
+        import re
+        from app.api.query import SAMPLE_SCHEMA
+
+        mock_llm.return_value = ("SELECT T1.C1 FROM T1 LIMIT 1", providers.GEMINI)
+        resp = self.client.post("/query", json={
+            "question": "show customers",
+            "database_id": "db_ecommerce",
+            "user_id": "user_leak_test",
+        })
+        self.assertEqual(resp.status_code, 200)
+
+        kwargs = mock_llm.call_args.kwargs
+        sent = json.dumps([kwargs["anonymized_schema"], kwargs["schema_hints"]])
+        for table in SAMPLE_SCHEMA:
+            self.assertIsNone(
+                re.search(r"\b" + re.escape(table) + r"\b", sent, re.IGNORECASE),
+                f"Real table name '{table}' reached the LLM input: {sent}",
+            )
+
 if __name__ == "__main__":
     unittest.main()
 
